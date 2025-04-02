@@ -42,15 +42,19 @@ app.use("/api/analytics", analyticsRoutes)
 
 if (process.env.NODE_ENV === "production") {
     app.use(express.static(path.join(__dirname, "../frontend/dist"), {
-        setHeaders: (res, path) => {
-            if (path.endsWith('.js')) {
+        setHeaders: (res, filePath) => {
+            if (filePath.endsWith('.js')) {
                 res.setHeader('Content-Type', 'application/javascript')
+            } else if (filePath.endsWith('.css')) {
+                res.setHeader('Content-Type', 'text/css')
+            } else if (filePath.endsWith('.html')) {
+                res.setHeader('Content-Type', 'text/html')
             }
         }
     }))
 
     app.get("*", (req, res) => {
-        res.sendFile(path.resolve(__dirname, "frontend", "dist", "index.html"))
+        res.sendFile(path.resolve(__dirname, "../frontend/dist/index.html"))
     })
 }
 

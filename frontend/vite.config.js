@@ -5,9 +5,11 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    proxy:{
-      "/api":{
-        target:'http://localhost:5000',
+    proxy: {
+      "/api": {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+        secure: false
       }
     },
     headers: {
@@ -17,7 +19,10 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        format: 'es'
+        format: 'es',
+        entryFileNames: 'assets/[name].js',
+        chunkFileNames: 'assets/[name].js',
+        assetFileNames: 'assets/[name].[ext]'
       }
     }
   }
