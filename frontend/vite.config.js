@@ -9,6 +9,16 @@ export default defineConfig({
       "/api":{
         target:'http://localhost:5000',
       }
+    },
+    headers: {
+      'Content-Type': 'application/javascript'
+    }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        format: 'es'
+      }
     }
   }
 })
