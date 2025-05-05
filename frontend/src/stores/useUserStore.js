@@ -10,94 +10,151 @@ export const useUserStore = create((set, get) => ({
 	loading: false,
 	checkingAuth: true,
 
-	signup: async ({ name, email, password, confirmPassword }) => {
-		set({ loading: true });
-
-		if (password !== confirmPassword) {
-			set({ loading: false });
-			return toast.error("Passwords do not match");
-		}
-		try {
-			const res = await axios.post("/auth/signup", { name, email, password });
-			set({ user: res.data.user, loading: false });
-			toast.success("Signup successful!");
-		} catch (error) {
-			set({ loading: false });
-			toast.error(error.response?.data?.message || "An error occurred");
-		}
-	},
-
-	login: async ({ email, password }) => {
-		set({ loading: true });
-		try {
-			const res = await axios.post("/auth/login", { email, password });
-			console.log("Login response:", res.data);
-			set({ user: res.data.user, loading: false });
-			// Fetch cart items after successful login
-			useCartStore.getState().getCartItems();
-			toast.success("Login successful!");
-		} catch (error) {
-			set({ loading: false });
-			toast.error(error.response?.data?.message || "An error occurred");
-		}
-	},
-
+	// Check if user is authenticated
 	checkAuth: async () => {
 		set({ checkingAuth: true });
 		try {
-			// First try to get the profile
 			const res = await axios.get("/auth/profile");
 			console.log("Auth check response:", res.data);
 			set({ user: res.data.user, checkingAuth: false });
-			// Fetch cart items after successful auth check
 			if (res.data.user) {
 				useCartStore.getState().getCartItems();
 			}
 		} catch (error) {
-			// Don't show error toast for 401 when checking auth
-			// This is expected when user is not logged in
-			if (error.response?.status !== 401) {
-				console.error("Auth check error:", error);
-				toast.error(error.response?.data?.message || "An error occurred");
+			console.error("Auth check error:", error);
+			const refreshToken = document.cookie.split('; ').find(row => row.startsWith('refresh_token='))?.split('=')[1];
+			if (refreshToken) {
+				try {
+					const refreshRes = await axios.post('/auth/refresh-token');
+					if (refreshRes.data.success) {
+						const profileRes = await axios.get("/auth/profile");
+						console.log("Profile after refresh:", profileRes.data);
+						set({ user: profileRes.data.user, checkingAuth: false });
+						if (profileRes.data.user) {
+							useCartStore.getState().getCartItems();
+						}
+						return;
+					}
+				} catch (refreshError) {
+					console.error("Refresh token error:", refreshError);
+				}
 			}
+			localStorage.removeItem('token');
+			document.cookie = 'access_token=; Max-Age=0; path=/;';
+			document.cookie = 'refresh_token=; Max-Age=0; path=/;';
 			set({ checkingAuth: false, user: null });
 		}
 	},
 
+	// Set user data
+	setUser: (user) => {
+		set({ user });
+		if (user) {
+			useCartStore.getState().getCartItems();
+		}
+	},
+
+	// Signup user
+	signup: async ({ name, email, password, confirmPassword }) => {
+		set({ loading: true });
+		try {
+			if (password !== confirmPassword) {
+				set({ loading: false });
+				toast.error("Passwords do not match");
+				return false;
+			}
+
+			console.log('Signup attempt with:', { name, email });
+			const res = await axios.post("/auth/signup", { 
+				name, 
+				email, 
+				password,
+				authType: 'password' // Explicitly set auth type
+			}, {
+				withCredentials: true
+			});
+
+			console.log("Signup response:", res.data);
+			
+			if (res.data.success) {
+				set({ user: res.data.user, loading: false });
+				toast.success("Signup successful!");
+				return true;
+			} else {
+				toast.error(res.data.message || "Signup failed");
+				return false;
+			}
+		} catch (error) {
+			console.error("Signup error:", error);
+			set({ loading: false });
+			toast.error(error.response?.data?.message || "An error occurred");
+			return false;
+		}
+	},
+
+	// Login user
+	login: async ({ email, password, googleId }) => {
+		set({ loading: true });
+		try {
+			console.log('Login attempt with:', { email, hasPassword: !!password, hasGoogleId: !!googleId });
+			const res = await axios.post("/auth/login", { email, password, googleId }, {
+				withCredentials: true
+			});
+			console.log("Login response:", res.data);
+			
+			if (res.data.success) {
+				set({ user: res.data.user, loading: false });
+				useCartStore.getState().getCartItems();
+				toast.success("Login successful!");
+				return true;
+			} else {
+				toast.error(res.data.message || "Login failed");
+				return false;
+			}
+		} catch (error) {
+			console.error("Login error:", error);
+			set({ loading: false });
+			toast.error(error.response?.data?.message || "An error occurred");
+			return false;
+		}
+	},
+
+	// Logout user
 	logout: async () => {
 		try {
-			// Clear user state first to prevent any further API calls
 			set({ user: null, checkingAuth: false });
-			// Clear cart
 			useCartStore.getState().clearCart();
 			
-			// Attempt to logout from server
+			localStorage.removeItem('token');
+			document.cookie = 'access_token=; Max-Age=0; path=/;';
+			document.cookie = 'refresh_token=; Max-Age=0; path=/;';
+			
 			try {
 				await axios.post("/auth/logout");
 				toast.success("Logged out successfully!");
 			} catch (error) {
 				console.error("Server logout error:", error);
-				// Even if server logout fails, we still want to clear local state
 				toast.success("Logged out successfully!");
 			}
 			
-			// Use setTimeout to ensure all state updates are complete
 			setTimeout(() => {
-				window.location.href = '/';
+				window.location.href = '/login';
 			}, 100);
 		} catch (error) {
 			console.error("Logout error:", error);
-			// Even if there's an error, we should still clear the local state
+			localStorage.removeItem('token');
+			document.cookie = 'access_token=; Max-Age=0; path=/;';
+			document.cookie = 'refresh_token=; Max-Age=0; path=/;';
 			set({ user: null, checkingAuth: false });
 			useCartStore.getState().clearCart();
 			toast.success("Logged out successfully!");
-			// Use setTimeout to ensure all state updates are complete
 			setTimeout(() => {
 				window.location.href = '/';
 			}, 100);
 		}
 	},
 
+	// Refresh token
 	refreshToken: async () => {
 		if(get().checkingAuth){
 			return;
@@ -105,38 +162,57 @@ export const useUserStore = create((set, get) => ({
 		set({ checkingAuth: true });
 		try {
 			const response = await axios.post("/auth/refresh-token");
-			set({checkingAuth: false });
+			if (response.data.success) {
+				const token = response.headers['set-cookie']?.find(cookie => cookie.includes('access_token='));
+				if (token) {
+					const accessToken = token.split(';')[0].split('=')[1];
+					localStorage.setItem('token', accessToken);
+				}
+			}
+			set({ checkingAuth: false });
 			return response.data;
+		} catch (error) {
+			console.error("Refresh token error:", error);
+			localStorage.removeItem('token');
+			document.cookie = 'access_token=; Max-Age=0; path=/;';
+			document.cookie = 'refresh_token=; Max-Age=0; path=/;';
+			set({ user: null, checkingAuth: false });
+			throw error;
 		}
-		catch (error) {
-			set({user:null,checkingAuth: false });
-			throw error
-		}
-	},
-
+	}
 }));
 
+// Add response interceptor
 axios.interceptors.response.use(
 	(response) => response,
-	async(error) => {
+	async (error) => {
 		const originalRequest = error.config;
+		
 		if (error.response?.status === 401 && !originalRequest._retry) {
 			originalRequest._retry = true;
+			
 			try {
-				if(refreshPromise){
+				if (refreshPromise) {
 					await refreshPromise;
 					return axios(originalRequest);
 				}
+				
 				refreshPromise = useUserStore.getState().refreshToken();
 				await refreshPromise;
 				refreshPromise = null;
+				
 				return axios(originalRequest);
-			}
-			catch (refreshError) {
+			} catch (refreshError) {
+				console.error("Token refresh failed:", refreshError);
+				localStorage.removeItem('token');
+				document.cookie = 'access_token=; Max-Age=0; path=/;';
+				document.cookie = 'refresh_token=; Max-Age=0; path=/;';
+				
 				useUserStore.getState().logout();
 				return Promise.reject(refreshError);
 			}
 		}
+		
 		return Promise.reject(error);
 	}
-)
+);

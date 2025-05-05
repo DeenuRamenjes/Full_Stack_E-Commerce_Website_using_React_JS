@@ -1,50 +1,60 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
-import {User,Mail,Lock,UserPlus,Loader,ArrowRight} from "lucide-react"
-import {motion} from "framer-motion"
+import { User, Mail, Lock, UserPlus, Loader, ArrowRight } from "lucide-react"
+import { motion } from "framer-motion"
 import { useUserStore } from "../stores/useUserStore";
+import GoogleLogin from '../components/GoogleLogin'
 
 
 const SignupPage = () => {
 
-  
-  const [formData,setFormData]=useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: ""
-  })
 
-  const {signup,loading}=useUserStore()
+	const [formData, setFormData] = useState({
+		name: "",
+		email: "",
+		password: "",
+		confirmPassword: ""
+	})
 
-  const handleSubmit=(e)=>{
-    e.preventDefault()
-    signup(formData)
-  }
+	const { signup, loading } = useUserStore()
 
-
-  return (
-    <div className='flex flex-col justify-center py-12 sm:px-6 lg:px-8'>
-      <motion.div
-      initial={{ opacity: 0 , y:-20}}
-      animate={{ opacity: 1 , y:0 }}
-      transition={{duration: 0.5 }}
-      >
-        <h2 className='mt-6 text-center text-3xl font-extrabold text-emerald-400'>Create Your Account</h2>
-      </motion.div>
-
-      <motion.div
-      className='mt-8 sm:mx-auto sm:w-full sm:max-w-md'
-      initial={{ opacity: 0 , y:20}}
-      animate={{ opacity: 1 , y:0 }}
-      transition={{duration: 0.5, delay: 0.2 }}
-      >
-        <div className='bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10'>
-          <form onSubmit={handleSubmit} className='space-y-6'>
+	const handleSubmit = (e) => {
+		e.preventDefault()
+		signup(formData)
+	}
 
 
-          <div>
+	return (
+		<div className='flex flex-col justify-center py-12 sm:px-6 lg:px-8'>
+			<motion.div
+				initial={{ opacity: 0, y: -20 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.5 }}
+			>
+				<h2 className='mt-6 text-center text-3xl font-extrabold text-emerald-400'>Create Your Account</h2>
+			</motion.div>
+
+			<motion.div
+				className='mt-8 sm:mx-auto sm:w-full sm:max-w-md'
+				initial={{ opacity: 0, y: 20 }}
+				animate={{ opacity: 1, y: 0 }}
+				transition={{ duration: 0.5, delay: 0.2 }}
+			>
+				<div className='bg-gray-800 py-8 px-4 shadow sm:rounded-lg sm:px-10'>
+					<form onSubmit={handleSubmit} className='space-y-6'>
+
+
+						<div>
+							<GoogleLogin />
+							<div className="relative">
+								<div className="absolute inset-0 flex items-center">
+									<div className="w-full border-t border-gray-600"></div>
+								</div>
+								<div className="relative flex justify-center text-sm">
+									<span className="px-2 bg-gray-800 text-gray-400">Or continue with email</span>
+								</div>
+							</div>
 							<label htmlFor='name' className='block text-sm font-medium text-gray-300'>
 								Full name
 							</label>
@@ -66,7 +76,7 @@ const SignupPage = () => {
 						</div>
 
 
-            <div>
+						<div>
 							<label htmlFor='email' className='block text-sm font-medium text-gray-300'>
 								Email address
 							</label>
@@ -151,19 +161,19 @@ const SignupPage = () => {
 								</>
 							)}
 						</button>
-          </form>
+					</form>
 
-          <p className='mt-8 text-center text-sm text-gray-400'>
+					<p className='mt-8 text-center text-sm text-gray-400'>
 						Already have an account?{" "}
 						<Link to='/login' className='font-medium text-emerald-400 hover:text-emerald-300'>
 							Login here <ArrowRight className='inline h-4 w-4' />
 						</Link>
 					</p>
 
-        </div>
-      </motion.div>
-    </div>
-  )
+				</div>
+			</motion.div>
+		</div>
+	)
 }
 
 export default SignupPage

@@ -1,82 +1,130 @@
 import axios from "axios";
 
+// Create axios instance with proper cookie handling
 const axiosInstance = axios.create({
-    baseURL: import.meta.mode === 'development' ? 'http://localhost:5000/api' : '/api',
-    withCredentials: true,
+    baseURL: 'http://localhost:5000/api',
+    withCredentials: true, // Important for cookie handling
     headers: {
-        'Content-Type': 'application/json',
-    }
+        'Content-Type': 'application/json'
+    },
+    timeout: 10000, // 10 second timeout
+    xsrfCookieName: 'csrfToken',
+    xsrfHeaderName: 'X-CSRF-Token'
 });
 
-let isRefreshing = false;
-let failedQueue = [];
+// Global state for refresh token promise
+let refreshPromise = null;
 
-const processQueue = (error = null) => {
-    failedQueue.forEach(prom => {
-        if (error) {
-            prom.reject(error);
-        } else {
-            prom.resolve();
+// Function to handle refresh token
+const handleRefreshToken = async () => {
+    try {
+        // If refresh is already in progress, wait for it to complete
+        if (!refreshPromise) {
+            // Get refresh token from cookies
+            const refreshToken = document.cookie.split('; ').find(row => row.startsWith('refresh_token='))?.split('=')[1];
+            if (!refreshToken) {
+                throw new Error('No refresh token found');
+            }
+            
+            // Send refresh request with credentials
+            refreshPromise = axiosInstance.post('/auth/refresh-token', {}, {
+                withCredentials: true,
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
         }
-    });
-    failedQueue = [];
+        
+        const response = await refreshPromise;
+        refreshPromise = null;
+        
+        // Extract new tokens from response
+        const { accessToken } = response.data;
+        if (accessToken) {
+            // Update tokens in storage
+            localStorage.setItem('token', accessToken);
+            
+            // Set new access token cookie
+            document.cookie = `access_token=${accessToken}; Max-Age=${15 * 60}; path=/; sameSite=lax; secure`;
+            
+            return accessToken;
+        }
+        
+        throw new Error('No access token received from refresh');
+    } catch (error) {
+        console.error('Refresh token failed:', error);
+        // Clear refresh promise on error
+        refreshPromise = null;
+        // Clear any stored tokens
+        localStorage.removeItem('token');
+        // Clear cookies
+        document.cookie = 'access_token=; Max-Age=0; path=/;';
+        document.cookie = 'refresh_token=; Max-Age=0; path=/;';
+        throw error;
+    }
 };
 
-// Add a request interceptor to handle token refresh
+// Response interceptor
 axiosInstance.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        // Store any new tokens from response
+        if (response.data.accessToken) {
+            localStorage.setItem('token', response.data.accessToken);
+            // Set access token cookie
+            document.cookie = `access_token=${response.data.accessToken}; Max-Age=${15 * 60}; path=/; sameSite=lax; secure`;
+        }
+        return response;
+    },
     async (error) => {
         const originalRequest = error.config;
-
-        // If the error is 401 and we haven't tried to refresh the token yet
+        
+        // Only handle 401 errors
         if (error.response?.status === 401 && !originalRequest._retry) {
-            // Don't try to refresh if we're already on the login page or making a login request
-            // Also don't try to refresh if we're checking auth or making a refresh token request
-            if (window.location.pathname.includes('/login') || 
-                originalRequest.url.includes('/auth/login') ||
-                originalRequest.url.includes('/auth/signup') ||
-                originalRequest.url.includes('/auth/refresh-token') ||
-                originalRequest.url.includes('/auth/profile')) {
-                return Promise.reject(error);
-            }
-
-            if (isRefreshing) {
-                // If we're already refreshing, queue this request
-                return new Promise((resolve, reject) => {
-                    failedQueue.push({ resolve, reject });
-                })
-                    .then(() => axiosInstance(originalRequest))
-                    .catch(err => Promise.reject(err));
-            }
-
             originalRequest._retry = true;
-            isRefreshing = true;
-
+            
             try {
-                // Try to refresh the token
-                await axiosInstance.post('/auth/refresh-token');
-                processQueue();
+                // Handle refresh token
+                const newAccessToken = await handleRefreshToken();
+                
+                // Update the original request with new access token
+                originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+                
                 // Retry the original request
                 return axiosInstance(originalRequest);
             } catch (refreshError) {
-                processQueue(refreshError);
-                // If refresh fails, clear user state and redirect to login
-                if (refreshError.response?.status === 401) {
-                    // Only redirect to login if we're not already on the login page
-                    // and not checking auth
-                    if (!window.location.pathname.includes('/login') && 
-                        !originalRequest.url.includes('/auth/profile')) {
-                        window.location.href = '/login';
-                    }
-                }
+                // Clear any stored tokens
+                localStorage.removeItem('token');
+                // Clear cookies
+                document.cookie = 'access_token=; Max-Age=0; path=/;';
+                document.cookie = 'refresh_token=; Max-Age=0; path=/;';
+                // Don't redirect immediately, let the error propagate
                 return Promise.reject(refreshError);
-            } finally {
-                isRefreshing = false;
             }
         }
 
         return Promise.reject(error);
     }
 );
+
+// Request interceptor
+axiosInstance.interceptors.request.use((config) => {
+    // Add token to requests
+    const token = localStorage.getItem('token');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Add credentials
+    config.withCredentials = true;
+    
+    return config;
+});
+
+// Add a function to clear all tokens
+export const clearTokens = () => {
+    localStorage.removeItem('token');
+    document.cookie = 'access_token=; Max-Age=0; path=/;';
+    document.cookie = 'refresh_token=; Max-Age=0; path=/;';
+};
 
 export default axiosInstance;

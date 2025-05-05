@@ -1,13 +1,40 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
-import {ShoppingCart,Lock,LogOut,UserPlus,LogIn} from "lucide-react"
+import {ShoppingCart,Lock,LogOut,UserPlus,LogIn, Menu, X} from "lucide-react"
 import { useUserStore } from '../stores/useUserStore'
 import { useCartStore } from '../stores/useCartStore'
+import { UserButton, useUser, useClerk } from '@clerk/clerk-react'
+import { motion, AnimatePresence } from "framer-motion"
 
 const Navbar = () => {
+
   const { user, logout } = useUserStore()
+  const { user: clerkUser, signOut } = useUser()
+  const { signOut: clerkSignOut } = useClerk()
   const isAdmin = user?.role === 'admin'
   const {cart}  = useCartStore()
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
+
+  const isAuthenticated = clerkUser || user
+
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen)
+  }
+
+  const handleLogout = async () => {
+    try {
+      // If user is logged in with Clerk, sign out from Clerk
+      if (clerkUser) {
+        await clerkSignOut()
+      }
+      // If user is logged in with regular auth, logout from store
+      if (user) {
+        await logout()
+      }
+    } catch (error) {
+      console.error('Error during logout:', error)
+    }
+  }
 
   return (
     <header className='fixed top-0 left-0 w-full bg-gray-900 bg-opacity-90 backdrop-blur-md shadow-lg z-40 transition-all duration-300 border-b border-emerald-800'>
@@ -34,12 +61,29 @@ const Navbar = () => {
                   <span className='hidden sm:inline'>Dashboard</span>
                 </Link>
               )}
-              {user ?(
-                <button onClick={logout} className='bg-gray-700 hover:bg-gray-600 text-white py-2 px-4  rounded-md flex items-center transition duration-300 ease-in-out'>
-                  <LogOut size={18}/>
-                  <span className='hidden sm:inline ml-2'>Log out</span>
-                </button>
-              ):(
+              {isAuthenticated ? (
+                <div className="flex items-center gap-4">
+                   
+
+                  {/* <UserButton 
+                    afterSignOutUrl="/"
+                    appearance={{
+                      elements: {
+                        userButtonAvatarBox: "w-10 h-10",
+                        userButtonBox: "hover:bg-gray-100",
+                        userButtonTrigger: "focus:shadow-none"
+                      }
+                    }}
+                  /> */}
+                  <button 
+                    onClick={handleLogout} 
+                    className='bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-md flex items-center transition duration-300 ease-in-out'
+                  >
+                    <LogOut size={18}/>
+                    <span className='hidden sm:inline ml-2'>Log out</span>
+                  </button>
+                </div>
+              ) : (
                 <>
                   <Link to={"/signup"}	className='bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-4 rounded-md flex items-center transition duration-300 ease-in-out'>
 									  <UserPlus className='mr-2' size={18} />
@@ -54,6 +98,77 @@ const Navbar = () => {
         </nav>
         </div>
       </div>
+
+      {/* Mobile menu */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="md:hidden"
+          >
+            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+              <Link
+                to="/"
+                className="text-gray-700 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Home
+              </Link>
+              <Link
+                to="/products"
+                className="text-gray-700 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Products
+              </Link>
+              <Link
+                to="/about"
+                className="text-gray-700 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                About
+              </Link>
+              <Link
+                to="/contact"
+                className="text-gray-700 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+                onClick={() => setIsMenuOpen(false)}
+              >
+                Contact
+              </Link>
+              {isAuthenticated ? (
+                <>
+                  <Link
+                    to="/cart"
+                    className="text-gray-700 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Cart ({cart.length})
+                  </Link>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setIsMenuOpen(false);
+                    }}
+                    className="text-gray-700 hover:text-gray-900 block w-full text-left px-3 py-2 rounded-md text-base font-medium"
+                  >
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <Link
+                  to="/login"
+                  className="text-gray-700 hover:text-gray-900 block px-3 py-2 rounded-md text-base font-medium"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Login
+                </Link>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   )
 }

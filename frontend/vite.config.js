@@ -11,9 +11,6 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       }
-    },
-    headers: {
-      'Content-Type': 'application/javascript'
     }
   },
   build: {
