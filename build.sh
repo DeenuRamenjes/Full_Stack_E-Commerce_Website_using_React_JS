@@ -4,9 +4,9 @@
 rm -rf frontend/node_modules
 rm -f frontend/package-lock.json
 
-# Install dependencies
+# Install dependencies with legacy peer deps
 cd frontend
-npm install
+npm install --legacy-peer-deps
 
 # Build the frontend
 npm run build
